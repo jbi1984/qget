@@ -1,3 +1,7 @@
+/*
+ * 2011 -2021 ,All rights reserved.
+ * Contact: heguanbo@gmail.com/gjhe@novell.com
+ */
 #ifndef _FTP_DECODE_CPP
 #define _FTP_DECODE_CPP
 #include "ftpdecode.h"

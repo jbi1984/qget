@@ -1,3 +1,7 @@
+/*
+ * 2011 -2021 ,All rights reserved.
+ * Contact: heguanbo@gmail.com/gjhe@novell.com
+ */
 //#include <algorithm>
 #include "ftpdecode.h"
 #include "httpdecode.h"

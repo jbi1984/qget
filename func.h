@@ -1,3 +1,7 @@
+/*
+ * 2011 -2021 ,All rights reserved.
+ * Contact: heguanbo@gmail.com/gjhe@novell.com
+ */
 #include <string>
 #include <cmath>
 #include "ace/Basic_Types.h"

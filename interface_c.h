@@ -1,3 +1,7 @@
+/*
+ * 2011 -2021 ,All rights reserved.
+ * Contact: heguanbo@gmail.com/gjhe@novell.com
+ */
 #ifndef __TASK_INTERFACE_H_C_H__
 #define __TASK_INTERFACE_H_C_H__
 
