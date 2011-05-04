@@ -1,7 +1,3 @@
-/*
- * 2011 -2021 ,All rights reserved.
- * Contact: heguanbo@gmail.com/gjhe@novell.com
- */
 #ifndef _HTTP_DECODE_HEADER
 #define _HTTP_DECODE_HEADER
 

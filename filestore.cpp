@@ -1,7 +1,3 @@
-/*
- * 2011 -2021 ,All rights reserved.
- * Contact: heguanbo@gmail.com/gjhe@novell.com
- */
 #include "filestore.h"
 #include "log.h"
 #include <string>
@@ -9,8 +5,8 @@
 #include <ace/Mutex.h>
 
 //static ACE_Thread_Mutex GFMutex;
-//static ACE_Recursive_Thread_Mutex GFMutex;
-static ACE_Mutex GFMutex;
+static ACE_Recursive_Thread_Mutex GFMutex;
+//static ACE_Mutex GFMutex;
 
 CFileStore::CFileStore()
 {

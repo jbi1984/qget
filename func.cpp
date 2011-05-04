@@ -1,7 +1,3 @@
-/*
- * 2011 -2021 ,All rights reserved.
- * Contact: heguanbo@gmail.com/gjhe@novell.com
- */
 #include "func.h"
 
 ACE_INT64 ACE_INT64_ATOI(const char * input, int len)

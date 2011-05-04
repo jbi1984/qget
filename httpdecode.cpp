@@ -1,7 +1,3 @@
-/*
- * 2011 -2021 ,All rights reserved.
- * Contact: heguanbo@gmail.com/gjhe@novell.com
- */
 #ifndef _HTTP_DECODE_CPP
 #define _HTTP_DECODE_CPP
 
@@ -14,8 +10,8 @@
 #include <ace/Recursive_Thread_Mutex.h>
 #include <ace/Mutex.h>
 
-//ACE_Recursive_Thread_Mutex GMutex;
-static ACE_Mutex GMutex;
+ACE_Recursive_Thread_Mutex GMutex;
+//static ACE_Mutex GMutex;
 //static ACE_RW_Mutex GMutex;
 
 std::string strVersion = "HTTP/1.1";
@@ -512,9 +508,9 @@ unsigned int CHttpClient::DecodeResponse(const char*resdata, int len)
 		*(pHeader+ii) = *(res+ii);
 
 
-	GMutex.acquire();
 	if(m_jieli_updaterange)
 	{		
+		GMutex.acquire();
 		m_jieli_updaterange = false;
 		GMutex.release();
 		return -1;
@@ -637,7 +633,7 @@ CHUNK_OK:
 							}*/
 							delete []pHeader;
 							pHeader = NULL;
-							GMutex.release();
+							//GMutex.release();
 							return 0;
 					}//end of if (m_bChunk)
 				}//end of iContentLen = 0	
@@ -652,7 +648,7 @@ CHUNK_OK:
 		QLOG("the response Header: \n%s\n", pHeader);
 		delete []pHeader;
 		pHeader = NULL;
-		GMutex.release();
+		//GMutex.release();
 		return -1;
 	}
 }//end of if (0 != headersize)
@@ -689,16 +685,20 @@ else//headersize = 0
 			{
 				QLOG("one chunked data receive finished.\n");
 				//if server did not close the connection, there are maybe other data.
+				GMutex.acquire();
 				m_IsThisPieceComplete = true;
 				Complete_Num++;
+				GMutex.release();
 				goto CHUNK_OK2;
 			}
 			//update the data pointer
 			strData = strData.substr(idx_chunk2+2);
 			int received_datalen = strData.length()-2;
 			m_FileStore.StoreData(m_strFileName, m_offset, (char*)strData.c_str(), received_datalen);
+			GMutex.acquire();
 			m_offset += received_datalen;
 			m_ChunkLeftLen = ChunkLen - received_datalen;
+			GMutex.release();
 			QLOG("one chunk: size: %d | left: %d\n", ChunkLen, m_ChunkLeftLen);
 		}
 		else
@@ -715,7 +715,6 @@ else//headersize = 0
 CHUNK_OK2:
 		delete []pHeader;
 		pHeader = NULL;
-		GMutex.release();
 		return 0;
 	}//if(m_bChunk && !m_IsThisPieceComplete)
 }
@@ -728,9 +727,10 @@ if(NULL != pHeader)
 int datasize = len - headersize;
 //is it need to check the overflow for http's data receiving?  needed.
 // we can not reply on the server,so we need to do control.
+GMutex.acquire();
 if (m_offset + datasize > m_RangeEnd+1 && m_bSupportHeadMethord)
 {
-	QLOG("over flow detected --------m_offset: %Q  m_RangeEnd: %Q --------------------------------------\n", m_offset+datasize, m_RangeEnd);
+	QLOG("over flow detected --------m_offset: %Q  m_RangeEnd: %Q \n", m_offset+datasize, m_RangeEnd);
 	m_FileStore.StoreData(m_strFileName, m_offset, data, (m_RangeEnd+1)-m_offset);
 	m_offset += (m_RangeEnd+1)-m_offset;
 	QLOG("piece %d complete! \n", m_PieceID);
@@ -746,7 +746,6 @@ else
 }
 
 
-//what's the aim of the following code?
 chunk_ok:
 if (!m_bSupportHeadMethord)
 {
@@ -772,9 +771,7 @@ if (!m_bSupportHeadMethord)
 }
 else
 {
-	//std::cout<<"m_RANGE_Start: "<<m_RangeStart<<" | m_RangeEnd: "<<m_RangeEnd <<"| m_offset: "<<m_offset<<" ||Piece ok"<<std::endl;
 	m_fPrecent = ((float)(m_offset- m_RangeStart +1))/(m_RangeEnd - m_RangeStart+1);
-	//if (m_offset - m_RangeStart == m_RangeEnd - m_RangeStart+1)
 	if (m_offset == m_RangeEnd + 1)
 	{
 		QLOG("piece %d complete! \n", m_PieceID);
@@ -791,12 +788,10 @@ return datasize;
 
 bool CHttpClient::GetResCode(std::string strTmpRes, std::string &ResCode)
 {
-	//std::cout<<"Enter HttpClient::GetResCode!"<<std::endl;
 	QLOG("Enter HttpClient::GetResCode!\n");
 	std::string strRes = strTmpRes;
 	std::string::size_type iPos1 = strRes.find("\r\n", 0);
 	std::string strLineOne = strRes.substr(0, iPos1-0);
-	//std::cout<<"LineOne: "<<strLineOne<<std::endl;
 	QLOG("LineOne: %s\n", strLineOne.c_str());
 	std::string::size_type i = strLineOne.find("HTTP/1.1", 0);
 	strLineOne = strLineOne.substr(i+8);
@@ -827,7 +822,6 @@ ACE_INT64 CHttpClient::GetContentLen(std::string strTmpRes)
 
 void CHttpClient::Trim(std::string &strInput)
 {
-	//std::cout<<"Enter HttpClient::Trim!"<<std::endl;
 	int iLen = strInput.length();
 	std::string strNew = "";	
 
@@ -858,7 +852,6 @@ bool CHttpClient::GetTaskStatus()
 
 ACE_INT64 CHttpClient::HeadMethodForInfo(std::string &strReqURL, std::string &strFileName)
 {
-	//std::cout<<"***********HEAD begin connect......!"<<std::endl;
 	QLOG("HEAD begin connect......!\n");
 	std::string strEncodedRequest = "";
 	std::string strDecodedRes = "";
@@ -880,18 +873,16 @@ ReDirect:
 		QLOG("did not find :// in url, please check.\n");
 		return 0;
 	}
-	//解析出domain
+	//get domain
 	std::string strDomain = "";
 	int iPos2 = strURL.find('/',iPos1 + 3);
 	if (iPos2 == std::string::npos)
 	{
-		//return 0;
 		strDomain = strURL.substr(iPos1+3);
 	}
 	else
 		strDomain = strURL.substr(iPos1+3, iPos2 - (iPos1 +3));
 
-	//std::cout<<"ReqMethord:"<<strReqMethord.c_str()<<std::endl;
 	strEncodedRequest += strReqMethord + strSpace;
 	if(iPos2 == std::string::npos)
 	{
@@ -936,14 +927,11 @@ ReDirect:
 	// try to get all ip of one domain.
 
 	QLOG("Serverv ip %s \n", strServerIp.c_str());
-	//std::cout<<"Serverv ip: "<<strServerIp<<std::endl;
 	addr = ACE_INET_Addr("80", strServerIp.c_str());
 
-	//int iTryNum = 5;
 	int iCount  = 0;
 	int offset = 0;
 ReConnect:	
-	//iCount = 0;
 	if (-1 == Connector.connect(SockStream, addr, &TimeOut))
 	{
 		QLOG("HAED:    Timeout while connecting server\n");
@@ -956,7 +944,6 @@ ReConnect:
 		addr = ACE_INET_Addr("80", strServerIp.c_str());
 		goto ReConnect;
 	}
-	//std::cout<<"*************HEAD connect successfully------------------------->"<<std::endl;
 	QLOG("*************HEAD connect successfully------------------------->\n");
 	SockStream.send_n(strEncodedRequest.c_str(), strEncodedRequest.length(), &TimeOut);
 	int itmp = SockStream.recv(buf, sizeof(buf), &TimeOut);
@@ -979,10 +966,8 @@ ReConnect:
 	QLOG("HEAD Res: %s\n", strRes.c_str());
 	std::string strResCode = "";
 	CHttpClient::GetResCode(strRes, strResCode);
-	//std::cout<<"HHHH: "<<strResCode<<std::endl;
 	if (strResCode == gHttpResCode::strMovedPerm || strResCode == gHttpResCode::strMovedTmp)
 	{
-		//find the header "Location",get the new URI  //it's possible that it was redirect to a FTP URL,so we need to re-design it to judge the URL type
 		std::string strFlag = "Location:";
 		transform (strFlag.begin(), strFlag.end(), strFlag.begin(), toupper);
 		std::string strTmpRes = strRes;
@@ -990,7 +975,6 @@ ReConnect:
 		std::string::size_type iPos1 = strTmpRes.find(strFlag, 0);
 		if (std::string::npos == iPos1)
 		{
-			//std::cout<<"No Header: Location"<<std::endl;
 			QLOG("No Header : Location, so,we can not get a available URL.\n");
 			return 0;//it means that there is no this header-item
 		}
@@ -1006,7 +990,6 @@ ReConnect:
 	if (strResCode == gHttpResCode::strOk)
 	{
 		iLen = CHttpClient::GetContentLen(strRes);
-		//std::cout<<"IN HEAD: "<<iLen<<std::endl;
 		QLOG("IN HEAD: %d \n", iLen);
 	}
 	else
@@ -1044,10 +1027,6 @@ ReConnect:
 
 bool CHttpClient::UpdateRange(std::string &strEncodeReq, ACE_INT64 RangeStart, ACE_INT64 RangeEnd)
 {
-	/*
-	   if (m_iPieceNum <= 1)
-	   return true;
-	   */
 	std::string strTmp = strEncodeReq;
 	int pos1 = strTmp.find("Range: ", 0);
 	if (pos1 == std::string::npos)
@@ -1069,10 +1048,6 @@ bool CHttpClient::UpdateRange(std::string &strEncodeReq, ACE_INT64 RangeStart, A
 	return true;
 }
 
-//end CHttpClient-----------------------------------------------
-
-
-//begin CHttpConnector
 CHttpConnector::CHttpConnector(std::string strURL, ACE_Time_Value timeout, ACE_INT64 iRangeStart, ACE_INT64 iRangeEnd, int iPieceID, bool bSupportHeadMethord, int iPieceNum ,std::string filename)
 {
 	m_strURL = strURL;
@@ -1088,9 +1063,7 @@ CHttpConnector::CHttpConnector(std::string strURL, ACE_Time_Value timeout, ACE_I
 	m_pHttpClient->m_strFileName = filename;
 	m_pHttpClient->m_RangeStart = m_RangeStart;
 	m_pHttpClient->m_RangeEnd = m_RangeEnd;
-	//std::cout<<"HttpConnector created!"<<"Range: "<<m_RangeStart<<"-"<<m_RangeEnd<<std::endl;
 	QLOG("HttpConnector created!Range: %Q-%Q\n", m_RangeStart, m_RangeEnd);
-	//std::cout<<"RANGE: "<< m_RangeStart <<"  " <<m_RangeEnd<<std::endl;
 }
 
 CHttpConnector::~CHttpConnector()
@@ -1102,10 +1075,8 @@ CHttpConnector::~CHttpConnector()
 	}
 }
 
-//thread func
 int CHttpConnector::connect ()
 {
-	//std::cout<<"begin connect......!"<<std::endl;
 	QLOG("connecting......\n");
 	std::cout.flush();
 	char buf[1024*4] = {0};
@@ -1121,24 +1092,6 @@ int CHttpConnector::connect ()
 		QLOG("Domain is NUll!\n");
 	char str_port[] = "80";
 	ACE_INET_Addr addr(str_port, strServerIp.c_str());
-	/*
-	   if(bSupportHeadMethord)
-	   {
-	   uServerIp = addr.get_ip_address();
-	   uServerIp = htonl(uServerIp);
-	   struct in_addr addr_tmp;
-	   memcpy(&addr_tmp, &uServerIp, 4);
-	   strServerIp = inet_ntoa(addr_tmp);
-	   QLOG("Serverv ip %s \n", strServerIp.c_str());
-	   std::cout<<"Serverv ip: "<<strServerIp<<std::endl;
-	   addr = ACE_INET_Addr("80", strServerIp.c_str());
-	   }
-	   else
-	   {
-	   strServerIp = strAddr;//just for it can work
-	   }
-	   */
-
 
 	int itmp = -1;
 	int iDecodeRes = -1;
@@ -1173,14 +1126,12 @@ RE_Connect:
 			}
 			goto RE_Connect;
 		}
-		//QLOG("request0: \n %s\n", strEncodeReq.c_str());
 		itmp = m_SockStream.recv(buf, sizeof(buf), &m_TimeOut);
 		if (0 >= itmp)
 		{
 			iCounter += 10;
 			ACE_OS::memset(buf, 0, sizeof(buf));
 			m_SockStream.close();
-			//ACE_OS::sleep(iCounter);
 			if (300 < iCounter)
 			{
 				iCounter = 0;
@@ -1204,19 +1155,18 @@ RE_Connect:
 		}
 		//GMutex.release();
 		iDecodeRes = m_pHttpClient->DecodeResponse(buf, itmp);
-		GMutex.acquire();
+		//GMutex.acquire();
 		pc = m_pHttpClient->m_IsThisPieceComplete;
-		GMutex.release();
+		//GMutex.release();
 		if (pc)
 		{
 			return 0;
 		}
 		if (-1 == iDecodeRes)
 		{
-			GMutex.acquire();
-			//m_pHttpClient->fflag = true;//for what?
+			//GMutex.acquire();
 			m_pHttpClient->UpdateRange(strEncodeReq, /*m_RangeStart+*/m_pHttpClient->m_offset, m_RangeEnd);
-			GMutex.release();
+			//GMutex.release();
 			iCounter += 10;
 			ACE_OS::memset(buf, 0, sizeof(buf));
 			m_SockStream.close();
@@ -1235,19 +1185,19 @@ RE_Connect:
 		{
 			itmp = -1;
 			ACE_OS::memset(buf, 0, sizeof(buf));
-			GMutex.acquire();
+			//GMutex.acquire();
 			pc = m_pHttpClient->m_IsThisPieceComplete;
-			GMutex.release();
+			//GMutex.release();
 			if (!pc)
 			{
 				itmp = m_SockStream.recv(buf, sizeof(buf), &m_TimeOut);
 				if (0 >= itmp)
 				{
 					QLOG("did not receive reponse 1.will reconnect. \n");
-					GMutex.acquire();
+					//GMutex.acquire();
 					m_pHttpClient->UpdateRange(strEncodeReq, /*m_RangeStart+*/m_pHttpClient->m_offset, m_RangeEnd);
 					QLOG("request2: \n %s\n", strEncodeReq.c_str());
-					GMutex.release();
+					//GMutex.release();
 					m_SockStream.close();
 
 BBH:					
@@ -1284,10 +1234,10 @@ BBH:
 					itmp = m_SockStream.recv(buf, sizeof(buf), &m_TimeOut);
 					if (0 >= itmp)
 					{
-						GMutex.acquire();
+						//GMutex.acquire();
 						m_pHttpClient->UpdateRange(strEncodeReq, /*m_RangeStart+*/m_pHttpClient->m_offset, m_RangeEnd);
 						QLOG("request3: \n %s\n", strEncodeReq.c_str());
-						GMutex.release();
+						//GMutex.release();
 						iCounter +=10;
 						m_SockStream.close();
 						ACE_OS::sleep(iCounter);
@@ -1316,16 +1266,16 @@ BBH:
 				}
 				//GMutex.release();
 				iDecodeRes = m_pHttpClient->DecodeResponse(buf, itmp);
-				GMutex.acquire();
+				//GMutex.acquire();
 				pc = m_pHttpClient->m_IsThisPieceComplete;
-				GMutex.release();
+				//GMutex.release();
 				if (pc)
 					return 0;
 				if (-1 == iDecodeRes)
 				{
-					GMutex.acquire();
+					//GMutex.acquire();
 					m_pHttpClient->UpdateRange(strEncodeReq, /*m_RangeStart+*/m_pHttpClient->m_offset, m_RangeEnd);
-					GMutex.release();
+					//GMutex.release();
 					iCounter +=10;
 					ACE_OS::memset(buf, 0, sizeof(buf));
 					m_SockStream.close();
@@ -1355,9 +1305,6 @@ int CHttpConnector::svc(void)
 	return 0;
 }
 
-//end CHttpConnector
-
-//begin CHttpDownloadTask
 bool CHttpDownloadTask::m_bFirstDisplay = false;
 
 CHttpDownloadTask::CHttpDownloadTask(std::string strURL, int iPiecesNum)
@@ -1497,7 +1444,6 @@ int CHttpDownloadTask::LaunchTask()//get all threads ready
 		iPos1 = strReadLog.find('[', iPos2);
 		iPos2 = strReadLog.find(']', iPos1);
 		std::string strRate = strReadLog.substr(iPos1+1, iPos2 - iPos1 -1 );
-		//std::cout<<"Rate: "<<strRate<<std::endl;
 		gHTTP_Rate = ACE_INT64_ATOI(strRate.c_str(), strRate.length());
 
 		//get range-start/range-end pairs number
@@ -1533,8 +1479,6 @@ int CHttpDownloadTask::LaunchTask()//get all threads ready
 			std::string strEnd = strRangePair.substr(iPos3+1);
 			PairArray[i-1].RangeStart = ACE_INT64_ATOI(strStart.c_str(), strStart.length()); 
 			PairArray[i-1].RangeEnd = ACE_INT64_ATOI(strEnd.c_str(), strEnd.length()); 
-			//std::cout<<PairArray[i-1].RangeStart<<":"<<PairArray[i-1].RangeEnd<<std::endl;
-
 			--i;
 		}
 
@@ -1698,7 +1642,6 @@ bool CHttpDownloadTask::GetSpeedAndRate(double &speed, int &rate)
 	GMutex.acquire();
 	//get current time
 	ACE_Time_Value cur = ACE_OS::gettimeofday();
-	//std::cout<<m_StartTime.msec()/1000<<" : " <<cur.msec()/1000<<std::endl;
 	ACE_Time_Value tmp = cur - m_StartTime;
 	m_StartTime = cur;
 	std::map<int, CHttpConnector*>::iterator pos;
@@ -1748,7 +1691,6 @@ ACE_INT64 CHttpDownloadTask::GetFileSize()
 
 int CHttpDownloadTask::handle_signal(int signum, siginfo_t*,ucontext_t *)
 {
-	//std::cout<<"RECV SIGPIPE"<<std::endl;
 	QLOG("HTTP SIGPIPE\n");
 	return 0;
 }
@@ -1828,10 +1770,7 @@ CHttpDownloadTask::~CHttpDownloadTask()
 	}
 	//GMutex.release();
 }
-//end CHttpDownloadTask
 
-
-//BEGIN CHttpDownloadTaskManager
 CHttpDownloadTaskManager::CHttpDownloadTaskManager()
 {
 	m_iTaskID = 0;
@@ -1923,19 +1862,19 @@ int CHttpDownloadTaskManager::handle_timeout(const ACE_Time_Value & current_time
 	//float t_piece = 0.1;//1 ms
 	float t_piece = 0.5;//5 ms
 	//float t_piece = 1;//1 s
-	//GMutex.acquire();
 	std::map<long, CHttpDownloadTask*>::iterator pos;
 	CHttpConnector * pCon = NULL;
 	for (pos = m_TaskMap.begin(); pos != m_TaskMap.end(); ++pos)
 	{
-		GMutex.acquire();
+		//GMutex.acquire();
 
 		int perc = 0;
 		ACE_INT64 iPartFileSize = 0;
 		pos->second->time+=t_piece;
 		std::map<int, CHttpConnector*>::iterator pos2;
 		float percent = 0;
-		unsigned int offset = 0;
+		//unsigned int offset = 0;
+		ACE_INT64 offset = 0;
 		for (pos2 = pos->second->m_ThreadMap.begin(); pos2 != pos->second->m_ThreadMap.end(); ++pos2)
 		{
 			if (!pos2->second->m_pHttpClient->m_IsThisPieceComplete)
@@ -1953,134 +1892,102 @@ int CHttpDownloadTaskManager::handle_timeout(const ACE_Time_Value & current_time
 			{
 				percent += (pos2->second)->m_pHttpClient->m_fPrecent;
 			}
-			//offset += ((pos2->second)->m_pHttpClient->m_offset - (pos2->second)->m_pHttpClient->m_RangeStart) / 1024;
 			offset += (pos2->second)->m_pHttpClient->m_offset - (pos2->second)->m_pHttpClient->m_RangeStart;
-			//offset += ((pos2->second)->m_pHttpClient->m_offset - (pos2->second)->m_pHttpClient->m_RangeStart) / 1024 + overloadpiece_len;
-
 		}
 		offset += overloadpiece_len;
 		percent += overloadpiece_percent;
 
+		GMutex.acquire();
 		if (pos->second->m_PieceNum == Complete_Num)
 		{
 			pos->second->m_bTaskComplete = true;
 		}
 		else
 		{
-			//try to implement 'jieli',make it at least there are 2 or 3 threads to download
+			//try to implement 'jieli',try to make it at least there are 2 or 5 threads to download
 			if ((5 > pos->second->m_PieceNum && pos->second->m_PieceNum > 1 
 						&& pos->second->m_PieceNum - Complete_Num == 1 && bSupportHeadMethord)
 					|| (pos->second->m_PieceNum > 5 
 						&& pos->second->m_PieceNum - Complete_Num < 5 && bSupportHeadMethord))
-			//if (pos->second->m_PieceNum > 1 && pos->second->m_PieceNum - Complete_Num == 1 && bSupportHeadMethord)
 			{
 				ACE_INT64 itmp = 0;
 				bool bFindCompleteFirst = false;
 				bool bFindNonCompleteFirst = false;
 				bool bUpdatePos = false;
-				//for (int iloop=0;iloop<3;iloop++)
+				pCon = NULL;
+				std::map<int, CHttpConnector*>::iterator pos3 = pos->second->m_ThreadMap.end();
+				std::map<int, CHttpConnector*>::iterator pos4 = pos->second->m_ThreadMap.end();
+				for (pos2 = pos->second->m_ThreadMap.begin(); pos2 != pos->second->m_ThreadMap.end(); ++pos2)
 				{
-					pCon = NULL;
-					std::map<int, CHttpConnector*>::iterator pos3 = pos->second->m_ThreadMap.end();
-					std::map<int, CHttpConnector*>::iterator pos4 = pos->second->m_ThreadMap.end();
-					for (pos2 = pos->second->m_ThreadMap.begin(); pos2 != pos->second->m_ThreadMap.end(); ++pos2)
+					//find a completed piece
+					if (pos2->second->m_pHttpClient->m_IsThisPieceComplete)
 					{
-						//find a completed piece
-						if (pos2->second->m_pHttpClient->m_IsThisPieceComplete)
+						pCon = pos2->second;
+						if(bFindNonCompleteFirst)
 						{
-							pCon = pos2->second;
-							if(bFindNonCompleteFirst)
-							{
-								pos4 = pos2;
-								pos2 = pos3;
-								bFindNonCompleteFirst = false;
-								pos3 = pos->second->m_ThreadMap.end();
-								bUpdatePos = true;
-								QLOG("0000000000000000000000\n");
-								goto start_new_thread;
-							}
-							QLOG("11111111111111111111111\n");
+							pos4 = pos2;
+							pos2 = pos3;
+							bFindNonCompleteFirst = false;
+							pos3 = pos->second->m_ThreadMap.end();
+							bUpdatePos = true;
+							goto start_new_thread;
 						}
-						else if (NULL != pCon)//find a non-completed piece
-						{
+					}
+					else if (NULL != pCon)//find a non-completed piece
+					{
 start_new_thread:
-							QLOG("2222222222222222222222222222222\n");
-							itmp = pos2->second->m_RangeEnd - pos2->second->m_pHttpClient->m_offset+1;
-							if(itmp > (ACE_INT64)(64*1024))//64k
-							{
-								QLOG("3333333333333333333\n");
-								//std::cout<<"itmp: "<<itmp<<std::endl;
+						itmp = pos2->second->m_RangeEnd - pos2->second->m_pHttpClient->m_offset+1;
+						if(itmp > (ACE_INT64)(256*1024))//make it bigger, 256KB
+						{
+							--Complete_Num;
+							//correct the speed datas
+							overloadpiece_len += pCon->m_pHttpClient->m_offset-pCon->m_RangeStart;
+							overloadpiece_percent += pCon->m_pHttpClient->m_fPrecent;
 
-								//pos2->second->suspend();
-								--Complete_Num;
-								//correct the speed datas
-								overloadpiece_len += pCon->m_pHttpClient->m_offset-pCon->m_RangeStart;
-								overloadpiece_percent += pCon->m_pHttpClient->m_fPrecent;
+							//update the jieli thread
+							pCon->m_pHttpClient->m_IsThisPieceComplete = false;
+							pCon->m_pHttpClient->m_RangeStart = \
+											    pos2->second->m_pHttpClient->m_offset + itmp/2;
+							pCon->m_pHttpClient->m_offset = pCon->m_pHttpClient->m_RangeStart;
+							pCon->m_pHttpClient->m_RangeEnd = pos2->second->m_RangeEnd;
+							pCon->m_pHttpClient->m_fPrecent = 0.0;
+							pCon->m_RangeStart = pCon->m_pHttpClient->m_RangeStart;
+							pCon->m_RangeEnd = pCon->m_pHttpClient->m_RangeEnd;
+							QLOG("NEW TASK: RangeStart: %Q  | RangeEnd: %Q \n", pCon->m_RangeStart, pCon->m_RangeEnd);
 
-								//update the jieli thread
-								pCon->m_pHttpClient->m_IsThisPieceComplete = false;
-								pCon->m_pHttpClient->m_RangeStart = \
-									pos2->second->m_pHttpClient->m_offset + itmp/2;
-								pCon->m_pHttpClient->m_offset = pCon->m_pHttpClient->m_RangeStart;
-								pCon->m_pHttpClient->m_RangeEnd = pos2->second->m_RangeEnd;
-								pCon->m_pHttpClient->m_fPrecent = 0.0;
-								pCon->m_RangeStart = pCon->m_pHttpClient->m_RangeStart;
-								pCon->m_RangeEnd = pCon->m_pHttpClient->m_RangeEnd;
-								QLOG("NEW TASK: RangeStart: %Q  | RangeEnd: %Q \n", pCon->m_RangeStart, pCon->m_RangeEnd);
+							//update the jieli-ed thread
+							pos2->second->m_RangeEnd = pCon->m_RangeStart - 1;
+							pos2->second->m_pHttpClient->m_RangeEnd = pos2->second->m_RangeEnd;
+							pos2->second->m_pHttpClient->m_fPrecent \
+								= float(pos2->second->m_pHttpClient->m_offset-pos2->second->m_RangeStart) \
+								/(pos2->second->m_RangeEnd - pos2->second->m_RangeStart + 1);
+							//update the range sent to server
+							pos2->second->m_pHttpClient->m_jieli_updaterange = true;
+							QLOG("jieli-ed TASK: RangeStart: %Q  | RangeEnd: %Q \n", \
+									pos2->second->m_RangeStart, pos2->second->m_RangeEnd);
 
-								//update the jieli-ed thread
-								pos2->second->m_RangeEnd = pCon->m_RangeStart - 1;
-								pos2->second->m_pHttpClient->m_RangeEnd = pos2->second->m_RangeEnd;
-								pos2->second->m_pHttpClient->m_fPrecent \
-									= float(pos2->second->m_pHttpClient->m_offset-pos2->second->m_RangeStart) \
-									/(pos2->second->m_RangeEnd - pos2->second->m_RangeStart + 1);
-								//need to update the range sent to server?
-								pos2->second->m_pHttpClient->m_jieli_updaterange = true;
-								QLOG("jieli-ed TASK: RangeStart: %Q  | RangeEnd: %Q \n", \
-										pos2->second->m_RangeStart, pos2->second->m_RangeEnd);
-
-								itmp = 0;
-								//active the jieli thread
-								while(-1 == pCon->activate(THR_NEW_LWP|THR_JOINABLE \
-											|THR_INHERIT_SCHED|THR_SUSPENDED))
-								{
-									//ACE_OS::sleep(1);
-									std::cout<<"activate thread failed!maybe the thread number \
-										is too large!"<<std::endl;
-								}
-								//pCon->resume();
-								//QLOG("<<<Start a jieli thread successfully>>>>>>>.\n");
-								//std::cout<<"Start a jieli thread successfully."<<std::endl;;
-								//pCon = NULL;
-								//pos2->second->resume();
-								break;
-							}// > 64K
-							else
-							{
-								QLOG("444444444444444444444\n");
-								itmp = 0;
-								//keep the position of completed thread 
-								//pCon = NULL;
-								//bFindCompleteFirst = true;
-
-								//try to find another uncomplated piece
-								if (bUpdatePos)
-								{
-									pos2 = pos4;// re-assign to it's orig value
-									pos4 = pos->second->m_ThreadMap.end();
-									bUpdatePos = false;
-								}
-							}
-						}// pCon != NULL
+							itmp = 0;
+							break;
+						}// > 256K
 						else
 						{
-							//record the positon of the uncompleted thread
-							pos3 = pos2;
-							bFindNonCompleteFirst = true;
-							QLOG("55555555555555555555555555\n");
+							itmp = 0;
+							//try to find another uncomplated piece
+							if (bUpdatePos)
+							{
+								pos2 = pos4;// re-assign to it's orig value
+								pos4 = pos->second->m_ThreadMap.end();
+								bUpdatePos = false;
+							}
 						}
-					}//for pos2
-				}//for (int iloop=0;iloop<3;iloop++)
+					}// pCon != NULL
+					else
+					{
+						//record the positon of the uncompleted thread
+						pos3 = pos2;
+						bFindNonCompleteFirst = true;
+					}
+				}//for pos2
 			}
 		}//else
 
@@ -2090,6 +1997,12 @@ start_new_thread:
 		//active the jieli thread
 		if (NULL != pCon && pos2 != pos->second->m_ThreadMap.end())
 		{
+			while(-1 == pCon->activate(THR_NEW_LWP|THR_JOINABLE \
+						|THR_INHERIT_SCHED|THR_SUSPENDED))
+			{
+				std::cout<<"activate thread failed!maybe the thread number \
+					is too large!"<<std::endl;
+			}
 			pCon->resume();
 			QLOG("<<<Start a jieli thread successfully>>>>>>>.\n");
 			pCon = NULL;
@@ -2108,12 +2021,12 @@ start_new_thread:
 		}
 		else
 		{
-			//perc = int((percent/pos->second->m_PieceNum)*100);
 			perc = int(((float)offset/pos->second->m_FileSize)*100);
 		}
 		if (false == CHttpDownloadTask::m_bFirstDisplay)
 		{
-			std::cout<<std::setw(6)<<std::right<<"\r=> %"<<perc<<" |speed: "<<std::setw(10)<<std::right<<float(offset-pos->second->m_pre_offset)/t_piece/1024<<"KB/S |" \
+			std::cout<<std::setw(6)<<std::right<<"\r=> %"<<perc \
+				<<" |speed: "<<std::setw(10)<<std::right<<float(offset-pos->second->m_pre_offset)/t_piece/1024<<"KB/S |" \
 				<<"arg speed: "<<std::setw(10)<<std::setiosflags(ios::fixed)<<std::right<<std::setprecision(1)<<offset/pos->second->time/1024<<"KB/S |"  \
 				<<"time: "<<std::setw(6)<<std::right<<pos->second->time<<" s";
 			CHttpDownloadTask::m_bFirstDisplay= true;
@@ -2122,8 +2035,8 @@ start_new_thread:
 		}
 		else
 		{
-			std::cout<<std::setw(6)<<std::right<<"\r=> %"<<perc<<" |speed: "<<std::setw(10)<<std::right<<\
-				(offset-pos->second->m_pre_offset)/t_piece/1024<<"KB/S |" \
+			std::cout<<std::setw(6)<<std::right<<"\r=> %"<<perc \
+				<<" |speed: "<<std::setw(10)<<std::right<<(offset-pos->second->m_pre_offset)/t_piece/1024<<"KB/S |" \
 				<<"arg speed: "<<std::setw(10)<<std::setiosflags(ios::fixed)<<std::right<<std::setprecision(1)<<offset/pos->second->time/1024<<"KB/S |" \
 				<<"time: "<<std::setw(6)<<std::right<<pos->second->time<<" s";
 			pos->second->m_fSpeed = (offset-pos->second->m_pre_offset)/t_piece;
@@ -2151,7 +2064,6 @@ start_new_thread:
 		//next, check if the task is completed.
 		if (pos->second->m_bTaskComplete)
 		{
-			//GMutex.release();
 			ACE_Reactor::instance()->cancel_timer (this);
 			//delete the dp log datas
 			std::string strTmpFileName = "." + pos->second->m_strFileName;
@@ -2167,7 +2079,6 @@ start_new_thread:
 		}
 
 	}
-	//GMutex.release();
 	return 1;
 }
 
@@ -2182,7 +2093,5 @@ CHttpDownloadTaskManager::~CHttpDownloadTaskManager()
 		pos = m_TaskMap.begin();
 	}
 }
-//END CHttpDownloadTaskManager
-
 
 #endif //_HTTP_DECODE_CPP

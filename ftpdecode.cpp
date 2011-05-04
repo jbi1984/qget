@@ -1,7 +1,3 @@
-/*
- * 2011 -2021 ,All rights reserved.
- * Contact: heguanbo@gmail.com/gjhe@novell.com
- */
 #ifndef _FTP_DECODE_CPP
 #define _FTP_DECODE_CPP
 #include "ftpdecode.h"
@@ -13,8 +9,8 @@
 static std::string strChangeLine = "\r\n";
 static std::string strUser = "USER anonymous" + strChangeLine;
 static std::string strPassWord = "PASS heguanbo@@gamil.com" + strChangeLine;
-//static ACE_Recursive_Thread_Mutex FTPGMutex;
-static ACE_Mutex FTPGMutex;
+static ACE_Recursive_Thread_Mutex FTPGMutex;
+//static ACE_Mutex FTPGMutex;
 static bool bREST = false;
 static ACE_UINT32 uServerIp = 0;
 static std::string strServerIp = "";

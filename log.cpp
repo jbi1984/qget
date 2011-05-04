@@ -1,7 +1,3 @@
-/*
- * 2011 -2021 ,All rights reserved.
- * Contact: heguanbo@gmail.com/gjhe@novell.com
- */
 #include "log.h"
 #include "ace/OS_NS_stdlib.h"
 #include "ace/streams.h"
