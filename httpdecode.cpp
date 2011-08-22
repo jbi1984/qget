@@ -437,7 +437,7 @@ unsigned int CHttpClient::DecodeResponse(const char*resdata, int len)
 	{
 		if ( (res[j] == 'H' || res[j] == 'h') && (res[j+1] == 'T' || res[j+1] == 't') 
 				&& (res[j+2] == 'T' || res[j+2] == 't') && (res[j+3] == 'P' || res[j+3] == 'p') 
-				&& (res[j+4] == '/') && (res[j+5] == '1') && (res[j+6] == '.') && (res[j+7] == '1'))
+				&& (res[j+4] == '/') && (res[j+5] == '1') && (res[j+6] == '.') && ((res[j+7] == '1')||(res[j+7] == '0')) )
 		{
 			endflag2 = true;
 			break;
@@ -794,6 +794,10 @@ bool CHttpClient::GetResCode(std::string strTmpRes, std::string &ResCode)
 	std::string strLineOne = strRes.substr(0, iPos1-0);
 	QLOG("LineOne: %s\n", strLineOne.c_str());
 	std::string::size_type i = strLineOne.find("HTTP/1.1", 0);
+	if(i == std::string::npos)
+	{
+		i = strLineOne.find("HTTP/1.0", 0);
+	}
 	strLineOne = strLineOne.substr(i+8);
 	Trim(strLineOne);
 	ResCode = strLineOne.substr(0,3);
