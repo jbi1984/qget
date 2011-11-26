@@ -60,8 +60,10 @@ int main(int argc, char* argv[])
 	if (argc>2)
 	{
 		piecenum = ACE_OS::atoi(argv[2]);
-		if (piecenum>300)
-			piecenum = 300;
+		/*if (piecenum>300)
+			piecenum = 300;*/
+		if (piecenum>20)
+			piecenum = 20;
 	}
 
 	std::string strsub = strURL.substr(0,6);

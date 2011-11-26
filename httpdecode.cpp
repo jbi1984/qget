@@ -416,41 +416,135 @@ unsigned int CHttpClient::DecodeResponse(const char*resdata, int len)
 		return 0;
 	}
 
+	//jieli-ed, so stop and update the rangeStart and rangeEnd.
+	GMutex.acquire();
+	if(m_jieli_updaterange)
+	{		
+		m_jieli_updaterange = false;
+		GMutex.release();
+		return -1;
+	}
+	GMutex.release();
+
+	/*
+	 * Currently,    all the response cases:
+	 * 1. res code and headers,  ended with a "\r\n\r\n" ;
+	 * 2. pure data, no rescode code,  no headers, just data ;
+	 * 3. 
+	 */
 	//what's this?this is for filter the header from the data,well stupid!
 	//get the header end position.(find the first "\r\n\r\n", and it's the end of the header)
-	for (; i+3<len; ++i)
+	for (i=0;i<len ; ++i)
 	{
-		if ((res[i] == '\r') && (res[i+1] == '\n') && (res[i+2] == '\r') && (res[i+3] == '\n'))
+		//if ((res[i] == '\r') && (res[i+1] == '\n') && (res[i+2] == '\r') && (res[i+3] == '\n'))
+		//enhanced by hgj for more testing
+		if (i<len && res[i] == '\r')
 		{
-			endflag1 = true;
-			break;
+			while(i<len && (res[i+1] == ' ' || res[i+1] == '	' ) )
+				++i;
+			++i;
+			if(i<len && res[i] == '\n')
+			{
+				while(i<len && (res[i+1] == ' ' || res[i+1] == '	' ) )
+					++i;
+				++i;
+				if(i<len && res[i] == '\r')
+				{
+					while(i<len && (res[i+1] == ' ' || res[i+1] == '	' ) )
+						++i;
+					++i;
+					if(i<len && res[i] == '\n')
+					{
+						endflag1 = true;
+						QLOG("get 1  \\r\\n\\r\\n!\n");
+						break;
+					}
+				}
+			}
 		}
 	}
 	if(!endflag1)
 	{
-		;//QLOG("can not find \r\n\r\n in the res header,maybe the header is not completed,need goon receive.\n");
+		;//QLOG("can not find \\r\\n\\r\\n in the res header,maybe the header is not completed,need goon receive.\n");
 	}
 
 	//this a second check for the existing of the header.(find the string "HTTP/1.1")
 	//for (; j<10; ++j)
-	for (; j+7<len; ++j)
+	/*for (; j+7<len; ++j)
+	  {
+	  if ( (res[j] == 'H' || res[j] == 'h') && (res[j+1] == 'T' || res[j+1] == 't') 
+	  && (res[j+2] == 'T' || res[j+2] == 't') && (res[j+3] == 'P' || res[j+3] == 'p') 
+	  && (res[j+4] == '/') && (res[j+5] == '1') && (res[j+6] == '.') && ((res[j+7] == '1')||(res[j+7] == '0')) )
+	  {
+	  endflag2 = true;
+	  break;
+	  }			
+	  }*/	
+	for (j=0; j<len; ++j)
 	{
-		if ( (res[j] == 'H' || res[j] == 'h') && (res[j+1] == 'T' || res[j+1] == 't') 
-				&& (res[j+2] == 'T' || res[j+2] == 't') && (res[j+3] == 'P' || res[j+3] == 'p') 
-				&& (res[j+4] == '/') && (res[j+5] == '1') && (res[j+6] == '.') && ((res[j+7] == '1')||(res[j+7] == '0')) )
+		if (j<len && (res[j] == 'H' || res[j] == 'h'))//h
 		{
-			endflag2 = true;
-			break;
+			while (j<len && (res[j+1] ==' ' || res[j+1] == '	'))
+				++j;
+			++j;
+			if(j<len && (res[j] == 'T' || res[j] == 't'))//t
+			{
+				while (j<len && (res[j+1] == ' ' || res[j+1] == '	'))
+					++j;
+				++j;
+				if (j<len && (res[j] == 'T' || res[j] == 't'))//t
+				{
+					while (j<len && (res[j+1] ==' ' || res[j+1] == '	'))
+						++j;
+					++j;
+					if (j<len && (res[j] == 'P' || res[j] == 'p'))//p
+					{
+						while (j<len && (res[j+1] ==' ' || res[j+1] == '	'))
+							++j;
+						++j;
+						if (j<len && (res[j] == '/'))// /
+						{
+							while (j<len && (res[j+1] ==' ' || res[j+1] == '	'))
+								++j;
+							++j;
+							if (j<len && (res[j] == '1'))//1
+							{
+								while (j<len && (res[j+1] ==' ' || res[j+1] == '	'))
+									++j;
+								++j;
+								if (j<len && (res[j] == '.'))// .
+								{
+									while (j<len && (res[j+1] ==' ' || res[j+1] == '	'))
+										++j;
+									++j;
+									if (j<len && (res[j] == '1' || res[j] == '0'))
+										// 1 or 0. http/1.1 or http/1.0
+									{
+										endflag2 = true;
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
 		}			
 	}	
+
 	if(!endflag2)
 	{
 		;//QLOG("can not find HTTP/1.1 in the res header,maybe the header is not completed,need goon receive.\n");
 	}
+	if(!endflag1 && !endflag2)
+	{
+		;//QLOG("get pure data response.\n");
+	}
 
 	if(endflag1 != endflag2)
 	{
-		QLOG("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC-----the header is not completed,need goon receive.\n");
+		QLOG("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC-----the header maybe not completed,need goon receive.\n");
 		QLOG("CCCCCCCCCCC-----endflag1: %d, endflag2: %d.\n", endflag1, endflag2);
 		QLOG("CCCCCCCCCCC-----Res: %s\n", res);
 
@@ -459,20 +553,24 @@ unsigned int CHttpClient::DecodeResponse(const char*resdata, int len)
 
 	//re-write the match func
 	/*std::string strResMatch = res;
-	std::string strHeaderBeginFlag = "HTTP/1.1";
-	std::string strHeaderEndFlag = "\r\n\r\n";
-	transform (strResMatch.begin(), strResMatch.end(), strResMatch.begin(), toupper);
-	Trim(strResMatch)
-	*/
+	  std::string strHeaderBeginFlag = "HTTP/1.1";
+	  std::string strHeaderEndFlag = "\r\n\r\n";
+	  transform (strResMatch.begin(), strResMatch.end(), strResMatch.begin(), toupper);
+	  Trim(strResMatch)
+	  */
 
 	if (endflag1 && endflag2)
 	{
+		QLOG("get 1  real header !\n");
 		//this is not stable?
-		data = res+i+4;//data start position.
-		headersize = i+4;//headersize.
+		//data = res+i+4;//data start position.
+		//headersize = i+4;//headersize.
+		data = res+i+1;//data start position.
+		headersize = i+1;//headersize.
 
 		//try to find another header
-		i = i+3;
+		//i = i+3;
+		i = i;
 		if(i<len)
 		{
 			j = i;
@@ -507,14 +605,6 @@ unsigned int CHttpClient::DecodeResponse(const char*resdata, int len)
 	for (int ii =0;ii<headersize;++ii)
 		*(pHeader+ii) = *(res+ii);
 
-
-	if(m_jieli_updaterange)
-	{		
-		GMutex.acquire();
-		m_jieli_updaterange = false;
-		GMutex.release();
-		return -1;
-	}
 	//tmp = pHeader;
 	if (0 != headersize)
 	{
@@ -622,7 +712,7 @@ unsigned int CHttpClient::DecodeResponse(const char*resdata, int len)
 									break;
 								}
 								//}while(ChunkLen != 0);
-						}while(0);//we should make it to go on receiving data from socket
+							}while(0);//we should make it to go on receiving data from socket
 CHUNK_OK:
 							QLOG("Chuncked data received OK!----------->\n");
 							/*if(bConnectClose(tmp))
@@ -635,28 +725,28 @@ CHUNK_OK:
 							pHeader = NULL;
 							//GMutex.release();
 							return 0;
-					}//end of if (m_bChunk)
-				}//end of iContentLen = 0	
-			}//end of if (m_iFileSize == 0)
-		}//end of  if (!m_bSupportHeadMethord)
-	}//if (strResCode == gHttpResCode::strOk || strResCode == gHttpResCode::strPartial)
-	else
+						}//end of if (m_bChunk)
+					}//end of iContentLen = 0	
+				}//end of if (m_iFileSize == 0)
+			}//end of  if (!m_bSupportHeadMethord)
+		}//if (strResCode == gHttpResCode::strOk || strResCode == gHttpResCode::strPartial)
+		else
+		{
+			//std::cout<<"ResCode: "<<strResCode<<"－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－＞"<<std::endl;
+			//std::cout<<"header:"<<pHeader<<std::endl;
+			QLOG("**********Error ResCode: %s\n", strResCode.c_str());
+			QLOG("the response Header: \n%s\n", pHeader);
+			delete []pHeader;
+			pHeader = NULL;
+			//GMutex.release();
+			return -1;
+		}
+	}//end of if (0 != headersize)
+	else//headersize = 0
 	{
-		//std::cout<<"ResCode: "<<strResCode<<"－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－＞"<<std::endl;
-		//std::cout<<"header:"<<pHeader<<std::endl;
-		QLOG("**********Error ResCode: %s\n", strResCode.c_str());
-		QLOG("the response Header: \n%s\n", pHeader);
-		delete []pHeader;
-		pHeader = NULL;
-		//GMutex.release();
-		return -1;
-	}
-}//end of if (0 != headersize)
-else//headersize = 0
-{
-	// go on receiving chunked data; a series chunked data, the last one 's length is 0
-	if(m_bChunk && !m_IsThisPieceComplete)
-	{
+		// go on receiving chunked data; a series chunked data, the last one 's length is 0
+		if(m_bChunk && !m_IsThisPieceComplete)
+		{
 		QLOG("go on receiving chuncked data----------->\n");
 		int tmpdatalen = len - headersize;
 
@@ -717,17 +807,17 @@ CHUNK_OK2:
 		pHeader = NULL;
 		return 0;
 	}//if(m_bChunk && !m_IsThisPieceComplete)
-}
-if(NULL != pHeader)
-{
-	delete []pHeader;
-	pHeader = NULL;
-}
+	}
+	if(NULL != pHeader)
+	{
+		delete []pHeader;
+		pHeader = NULL;
+	}
 
-int datasize = len - headersize;
-//is it need to check the overflow for http's data receiving?  needed.
-// we can not reply on the server,so we need to do control.
-GMutex.acquire();
+	int datasize = len - headersize;
+	//is it need to check the overflow for http's data receiving?  needed.
+	// we can not reply on the server,so we need to do control.
+	GMutex.acquire();
 if (m_offset + datasize > m_RangeEnd+1 && m_bSupportHeadMethord)
 {
 	QLOG("over flow detected --------m_offset: %Q  m_RangeEnd: %Q \n", m_offset+datasize, m_RangeEnd);
@@ -783,7 +873,6 @@ else
 rev_ok:
 GMutex.release();
 return datasize;
-
 }
 
 bool CHttpClient::GetResCode(std::string strTmpRes, std::string &ResCode)
@@ -1146,31 +1235,26 @@ RE_Connect:
 			goto RE_Connect;
 		}
 		//update range
-		//GMutex.acquire();
+		GMutex.acquire();
 		if(m_pHttpClient->m_jieli_updaterange)
 		{
-			GMutex.acquire();
 			m_pHttpClient->UpdateRange(strEncodeReq, m_pHttpClient->m_offset, m_RangeEnd);
 			m_pHttpClient->m_jieli_updaterange = false;
-			GMutex.release();
 			m_SockStream.close();
 			addr = ACE_INET_Addr(str_port, strServerIp.c_str());
+			GMutex.release();
 			goto RE_Connect;
 		}
-		//GMutex.release();
+		GMutex.release();
 		iDecodeRes = m_pHttpClient->DecodeResponse(buf, itmp);
-		//GMutex.acquire();
 		pc = m_pHttpClient->m_IsThisPieceComplete;
-		//GMutex.release();
 		if (pc)
 		{
 			return 0;
 		}
 		if (-1 == iDecodeRes)
 		{
-			//GMutex.acquire();
 			m_pHttpClient->UpdateRange(strEncodeReq, /*m_RangeStart+*/m_pHttpClient->m_offset, m_RangeEnd);
-			//GMutex.release();
 			iCounter += 10;
 			ACE_OS::memset(buf, 0, sizeof(buf));
 			m_SockStream.close();
@@ -1189,19 +1273,15 @@ RE_Connect:
 		{
 			itmp = -1;
 			ACE_OS::memset(buf, 0, sizeof(buf));
-			//GMutex.acquire();
 			pc = m_pHttpClient->m_IsThisPieceComplete;
-			//GMutex.release();
 			if (!pc)
 			{
 				itmp = m_SockStream.recv(buf, sizeof(buf), &m_TimeOut);
 				if (0 >= itmp)
 				{
 					QLOG("did not receive reponse 1.will reconnect. \n");
-					//GMutex.acquire();
 					m_pHttpClient->UpdateRange(strEncodeReq, /*m_RangeStart+*/m_pHttpClient->m_offset, m_RangeEnd);
 					QLOG("request2: \n %s\n", strEncodeReq.c_str());
-					//GMutex.release();
 					m_SockStream.close();
 
 BBH:					
@@ -1238,10 +1318,8 @@ BBH:
 					itmp = m_SockStream.recv(buf, sizeof(buf), &m_TimeOut);
 					if (0 >= itmp)
 					{
-						//GMutex.acquire();
 						m_pHttpClient->UpdateRange(strEncodeReq, /*m_RangeStart+*/m_pHttpClient->m_offset, m_RangeEnd);
 						QLOG("request3: \n %s\n", strEncodeReq.c_str());
-						//GMutex.release();
 						iCounter +=10;
 						m_SockStream.close();
 						ACE_OS::sleep(iCounter);
@@ -1257,29 +1335,24 @@ BBH:
 				}
 
 				//update range
-				//GMutex.acquire();
+				GMutex.acquire();
 				if(m_pHttpClient->m_jieli_updaterange)
 				{
-					GMutex.acquire();
 					m_pHttpClient->UpdateRange(strEncodeReq, m_pHttpClient->m_offset, m_RangeEnd);
 					m_pHttpClient->m_jieli_updaterange = false;
-					GMutex.release();
 					m_SockStream.close();
 					addr = ACE_INET_Addr(str_port, strServerIp.c_str());
+					GMutex.release();
 					goto BBH;
 				}
-				//GMutex.release();
+				GMutex.release();
 				iDecodeRes = m_pHttpClient->DecodeResponse(buf, itmp);
-				//GMutex.acquire();
 				pc = m_pHttpClient->m_IsThisPieceComplete;
-				//GMutex.release();
 				if (pc)
 					return 0;
 				if (-1 == iDecodeRes)
 				{
-					//GMutex.acquire();
 					m_pHttpClient->UpdateRange(strEncodeReq, /*m_RangeStart+*/m_pHttpClient->m_offset, m_RangeEnd);
-					//GMutex.release();
 					iCounter +=10;
 					ACE_OS::memset(buf, 0, sizeof(buf));
 					m_SockStream.close();
@@ -1486,8 +1559,8 @@ int CHttpDownloadTask::LaunchTask()//get all threads ready
 			--i;
 		}
 
-		QLOG("< Continue...... >\n");
-		std::cout<<"< Continue...... >"<<std::endl;
+		QLOG("< Continued...... >\n");
+		std::cout<<"< Continued...... >"<<std::endl;
 		m_PieceNum = j;
 		CHttpConnector* pConnector = NULL;
 		ACE_Time_Value timeout(20,0);
@@ -1526,7 +1599,8 @@ newtask:
 			std::cout<<"FileSize: "<<(m_FileSize/1024)<<" KB"<<std::endl;
 		else
 			std::cout<<"FileSize: "<<(m_FileSize)<<" Bytes"<<std::endl;
-		CFileStore::CreateFile(m_strFileName, m_FileSize);
+		if(!CFileStore::CreateFile(m_strFileName, m_FileSize))
+			exit(1);
 		QLOG("FileSize: %Q\n", m_FileSize);
 	}
 	else
@@ -1689,7 +1763,6 @@ bool CHttpDownloadTask::GetSpeedAndRate(double &speed, int &rate)
 
 ACE_INT64 CHttpDownloadTask::GetFileSize()
 {
-	//GMutex.acquire();
 	return m_FileSize;
 }
 
@@ -1870,8 +1943,6 @@ int CHttpDownloadTaskManager::handle_timeout(const ACE_Time_Value & current_time
 	CHttpConnector * pCon = NULL;
 	for (pos = m_TaskMap.begin(); pos != m_TaskMap.end(); ++pos)
 	{
-		//GMutex.acquire();
-
 		int perc = 0;
 		ACE_INT64 iPartFileSize = 0;
 		pos->second->time+=t_piece;
@@ -2062,7 +2133,9 @@ start_new_thread:
 			strDP_Log = "[1]" + strDP_Log;
 		else
 			strDP_Log = "[0]" + strDP_Log;
-		CFileStore::CreateFile("."+pos->second->m_strFileName, 0);
+		//CFileStore::CreateFile("."+pos->second->m_strFileName, 0);
+		//remove(std::string("."+pos->second->m_strFileName).c_str());
+		pos->second->m_FileStore.StoreData("."+pos->second->m_strFileName, 0, " ",1);
 		pos->second->m_FileStore.StoreData("."+pos->second->m_strFileName, 0, (char*)strDP_Log.c_str(), strDP_Log.length());
 
 		//next, check if the task is completed.

@@ -1588,8 +1588,8 @@ unsigned int CFTPDownloadTask::LaunchTask()//start threads
 			--i;
 		}
 
-		QLOG("< Continue...... >\n");
-		std::cout<<"< Continue...... >"<<std::endl;
+		QLOG("< Continued...... >\n");
+		std::cout<<"< Continued...... >"<<std::endl;
 		m_PieceNum = j;
 		CFTPConnector* pConnector = NULL;
 		ACE_Time_Value timeout(20,0);
@@ -2125,7 +2125,7 @@ int CFTPDownloadTaskManager::handle_timeout(const ACE_Time_Value & current_time,
 			// [rate]|rangestart1:rangeend1|rangestart2:rangeend2...
 			strDP_Log = "[" + ACE_INT64_ITOA(perc, 10) + "]" + strDP_Log;
 			strDP_Log = "[" + strServerIp + "]" + strDP_Log;
-			CFileStore::CreateFile("."+pos->second->m_strFileName, 0);
+			//CFileStore::CreateFile("."+pos->second->m_strFileName, 0);
 			pos->second->m_FileStore.StoreData("."+pos->second->m_strFileName, 0, (char*)strDP_Log.c_str(), strDP_Log.length());
 		}	
 		else

@@ -31,8 +31,11 @@ bool CFileStore::CreateFile(std::string strFile, ACE_INT64 size)
    	int i = info.stream.truncate(size);
 	//std::cout<<"size of (ACE_OFF_T) "<<sizeof (ACE_OFF_T)<<"File size in create: "<<size<<std::endl;
 	if (i != 0)
+	{
 		QLOG("Set File Size to %Q failed,the return value is %d\n", size,i);
-	info.stream.close();
+		info.stream.close();
+		return false;
+	}
     
    return true;
 }
@@ -166,15 +169,18 @@ int CFileStore::StoreData(std::string strFileName, ACE_INT64 offset, char* strDa
 //int StoreData(std::string strFileName, unsigned int offset, std::string strData)
 {
 	//std::cout<<"Enter HttpFileStore::StoreData!"<<std::endl;
+	//ACE_Time_Value t_out(0,100);
+RR:
 	GFMutex.acquire();
 	StoreInfo  info;
 	info.name = strFileName;
 	ACE_FILE_Addr file_addr(info.name.c_str());
 	ACE_FILE_Connector con;
-RR:	if (-1 == con.connect(info.stream,file_addr))
+	if (-1 == con.connect(info.stream,file_addr /*, &t_out*/))
 	{
-		std::cout<<"connect failed in StoreData"<<std::endl;
-		QLOG("connect failed in StoreData(), the file name is %s\n", info.name.c_str());
+		GFMutex.release();
+		//std::cout<<"connect failed in StoreData, the file name is : "<<info.name<<std::endl;
+		QLOG("connect failed in StoreData! \n");
 		goto RR;
 		//return -1;
 	}
