@@ -9,15 +9,14 @@
 #include <ace/Recursive_Thread_Mutex.h>
 #include <ace/Mutex.h>
 
-bool bQGET_DEBUG = false;
+extern bool bQGET_DEBUG;
 
-//static ACE_Thread_Mutex QLOGGMutex;
-//static ACE_Recursive_Thread_Mutex QLOGGMutex;
 static ACE_Mutex QLOGGMutex;
-//static ACE_Process_Mutex QLOGGMutex;
 
 bool QLOG(const char*fmt,...)
 {
+	if(!bQGET_DEBUG)
+		return true;
 	QLOGGMutex.acquire();
 	std::string strParameter = "";
 	int d = 0,counter = 0;

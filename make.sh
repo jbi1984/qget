@@ -8,6 +8,7 @@
 #CPPFLAGS+=-D_FILE_OFFSET_BITS=64
 #CXXFLAGS+=-D_FILE_OFFSET_BITS=64
 g++ $CXXFLAGS *.cpp  -o qget `pkg-config --cflags --libs ACE` -static -lpthread
+#g++ $CXXFLAGS *.cpp  -o qget `pkg-config --cflags --libs ACE` -lpthread
 
 
 
